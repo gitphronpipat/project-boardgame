@@ -1,0 +1,23 @@
+{
+    "version": 2,
+    "framework": null,
+    "functions": {
+        "api/index.php": {
+            "runtime": "vercel-php@0.7.2"
+        }
+    },
+    "routes": [
+        {
+            "src": "/assets/(.*)",
+            "dest": "/assets/$1"
+        },
+        {
+            "src": "/(.*)",
+            "dest": "/api/index.php"
+        }
+    ],
+    "env": {
+        "FIREBASE_DATABASE_URL": "@firebase_database_url",
+        "FIREBASE_API_KEY": "@firebase_api_key"
+    }
+}

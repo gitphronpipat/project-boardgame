@@ -1,0 +1,26 @@
+# Dependencies
+/vendor/
+node_modules/
+
+# Environment
+.env
+application/config/firebase_credentials.json
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+application/logs/*.php
+!application/logs/index.html
+
+# Cache
+application/cache/*
+!application/cache/index.html
+
+# Vercel
+.vercel
