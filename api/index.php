@@ -17,8 +17,37 @@ if (file_exists($root . '/.env')) {
 }
 
 // ---- Fix: Vercel ส่ง request มาที่ /api/index.php ----
-// ต้อง rewrite URI ให้ CodeIgniter เข้าใจ
+// ตรวจหา original URI จาก Header ของ Vercel หรือ fallback จาก REQUEST_URI
+$req_uri = null;
+if (!empty($_SERVER['HTTP_X_MATCHED_PATH'])) {
+    $req_uri = $_SERVER['HTTP_X_MATCHED_PATH'];
+} elseif (!empty($_SERVER['HTTP_X_FORWARDED_URI'])) {
+    $req_uri = $_SERVER['HTTP_X_FORWARDED_URI'];
+} elseif (!empty($_SERVER['REQUEST_URI'])) {
+    $req_uri = $_SERVER['REQUEST_URI'];
+}
+
+// นำ query string กลับมาต่อถ้ามี
+if (!empty($req_uri) && !empty($_SERVER['QUERY_STRING']) && strpos($req_uri, '?') === false) {
+    $req_uri .= '?' . $_SERVER['QUERY_STRING'];
+}
+
+// ถ้า URI ขึ้นต้นด้วย /api/index.php หรือ /api ให้ลบออก
+if (!empty($req_uri)) {
+    if (strpos($req_uri, '/api/index.php') === 0) {
+        $req_uri = substr($req_uri, 14);
+    } elseif (strpos($req_uri, '/api') === 0) {
+        $req_uri = substr($req_uri, 4);
+    }
+}
+
+if (empty($req_uri) || $req_uri === '') {
+    $req_uri = '/';
+}
+
+$_SERVER['REQUEST_URI']     = $req_uri;
 $_SERVER['SCRIPT_NAME']     = '/index.php';
+$_SERVER['PHP_SELF']        = '/index.php';
 $_SERVER['SCRIPT_FILENAME'] = $root . '/index.php';
 
 // ---- ตั้ง path ให้ CI ชี้ไป root ของโปรเจค ----
