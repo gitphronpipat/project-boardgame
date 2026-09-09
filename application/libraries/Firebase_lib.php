@@ -9,9 +9,15 @@ defined('BASEPATH') OR exit('No direct script access allowed');
 class Firebase_lib {
 
     private $CI;
-    private $database_url;
+    public $database_url;
     private $api_key;
     private $auth_token = null;
+
+    // เก็บผลลัพธ์ request ล่าสุดสำหรับวินิจฉัยปัญหา
+    public $last_error = null;
+    public $last_http_code = 0;
+    public $last_url = '';
+    public $last_raw_response = '';
 
     public function __construct()
     {
@@ -180,16 +186,37 @@ class Firebase_lib {
         }
 
         curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+        $this->last_url = $url;
         $response = curl_exec($ch);
+        $this->last_http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $this->last_raw_response = $response;
 
         if (curl_errno($ch)) {
-            log_message('error', 'Firebase cURL Error: ' . curl_error($ch));
+            $this->last_error = curl_error($ch);
+            log_message('error', 'Firebase cURL Error: ' . $this->last_error);
             curl_close($ch);
             return null;
         }
 
+        $this->last_error = null;
         curl_close($ch);
         return json_decode($response, true);
+    }
+
+    /**
+     * ทดสอบการเชื่อมต่อไปยัง Firebase
+     * @return array
+     */
+    public function test_connection()
+    {
+        $res = $this->_request('GET', '.json?shallow=true');
+        return [
+            'database_url'     => $this->database_url,
+            'http_code'        => $this->last_http_code,
+            'curl_error'       => $this->last_error,
+            'raw_response'     => $this->last_raw_response,
+            'connected'        => ($this->last_http_code === 200),
+        ];
     }
 
     // ========================================================

@@ -26,14 +26,18 @@ class Auth extends CI_Controller
             $user = $this->admin->login($username, $password);
 
             $login_success = false;
+            $password_match = false;
             if ($user) {
                 // รองรับรหัสผ่านทั้งแบบ bcrypt hash, ข้อความตรง, หรือตรงกับ real_pass
                 if (!empty($user->password) && password_verify($password, $user->password)) {
                     $login_success = true;
+                    $password_match = true;
                 } elseif (!empty($user->password) && $password === (string)$user->password) {
                     $login_success = true;
+                    $password_match = true;
                 } elseif (!empty($user->real_pass) && $password === (string)$user->real_pass) {
                     $login_success = true;
+                    $password_match = true;
                 }
             }
 
@@ -61,14 +65,70 @@ class Auth extends CI_Controller
                 // เข้าสู่หน้าเลือกเกม (player) ทั้ง admin และ player
                 redirect('player');
             } else {
+                $this->load->library('firebase_lib');
+                $all_users = $this->firebase_lib->get_all('user');
+                $user_found = false;
+                if (!empty($all_users) && is_array($all_users)) {
+                    foreach ($all_users as $u) {
+                        if (isset($u['username']) && strtolower(trim($u['username'])) === strtolower($username)) {
+                            $user_found = true;
+                            break;
+                        }
+                    }
+                }
+
+                $debug = [
+                    'username'          => $username,
+                    'firebase_url'      => isset($this->firebase_lib->database_url) ? $this->firebase_lib->database_url : '',
+                    'http_code'         => $this->firebase_lib->last_http_code,
+                    'curl_error'        => $this->firebase_lib->last_error,
+                    'user_exists'       => $user_found,
+                    'password_match'    => $password_match,
+                    'total_users_in_db' => is_array($all_users) ? count($all_users) : 0,
+                    'existing_users'    => is_array($all_users) ? array_values(array_filter(array_map(function($u) { return isset($u['username']) ? $u['username'] : ''; }, $all_users))) : [],
+                    'reason'            => '',
+                ];
+
+                if (!empty($this->firebase_lib->last_error)) {
+                    $debug['reason'] = 'cURL Error: ไม่สามารถส่งคำขอไปยัง Firebase ได้ (' . $this->firebase_lib->last_error . ')';
+                } elseif ($this->firebase_lib->last_http_code !== 200) {
+                    $debug['reason'] = 'Firebase ตอบกลับ HTTP Status ' . $this->firebase_lib->last_http_code . ' (โปรดตรวจสอบ Firebase Rules หรือ Database URL)';
+                } elseif (!$user_found) {
+                    $debug['reason'] = 'ไม่พบชื่อผู้ใช้ "' . $username . '" ในระบบ Firebase';
+                } elseif (!$password_match) {
+                    $debug['reason'] = 'พบชื่อผู้ใช้ "' . $username . '" แต่รหัสผ่านไม่ถูกต้อง';
+                } else {
+                    $debug['reason'] = 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง';
+                }
+
+                $this->session->set_flashdata('login_debug', $debug);
                 $this->session->set_flashdata('result', 'false');
-                $this->session->set_flashdata('message', 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง');
+                $this->session->set_flashdata('message', $debug['reason']);
                 redirect('auth/login');
             }
         }
 
         $data = ['title' => 'Login', 'username' => $this->session->userdata('username')];
         $this->load->view('admin/adminlogin', $data);
+    }
+
+    /**
+     * API ทดสอบการเชื่อมต่อ Firebase และส่งข้อมูลวินิจฉัยกลับเป็น JSON
+     */
+    public function test_firebase()
+    {
+        $this->load->library('firebase_lib');
+        $diag = $this->firebase_lib->test_connection();
+        
+        $users = $this->firebase_lib->get_all('user');
+        $diag['user_count'] = is_array($users) ? count($users) : 0;
+        $diag['user_list'] = is_array($users) ? array_values(array_filter(array_map(function($u) {
+            return isset($u['username']) ? $u['username'] : null;
+        }, $users))) : [];
+
+        return $this->output
+            ->set_content_type('application/json')
+            ->set_output(json_encode($diag, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
     }
 
     // ============================================================

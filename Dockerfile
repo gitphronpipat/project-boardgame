@@ -6,8 +6,9 @@ ENV CI_ENV=production
 # 2. ปิดการแสดง error/warning บนหน้าเว็บ production
 RUN echo "display_errors = Off\nerror_reporting = E_ALL & ~E_DEPRECATED & ~E_STRICT\nlog_errors = On" > /usr/local/etc/php/conf.d/ci3-production.ini
 
-# 3. เปิดใช้งาน mod_rewrite สำหรับ CodeIgniter 3 (.htaccess)
-RUN a2enmod rewrite
+# 3. เปิดใช้งาน mod_rewrite และ headers สำหรับ CodeIgniter 3 (.htaccess + HTTPS proxy)
+RUN a2enmod rewrite headers \
+    && echo 'SetEnvIf X-Forwarded-Proto "^https$" HTTPS=on' >> /etc/apache2/apache2.conf
 
 # 4. อนุญาตให้ .htaccess ทำงาน (AllowOverride All เพื่อรองรับ clean URL)
 RUN sed -i '/<Directory \/var\/www\/>/,/<\/Directory>/ s/AllowOverride None/AllowOverride All/' /etc/apache2/apache2.conf
