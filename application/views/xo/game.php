@@ -8,11 +8,83 @@
     <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&family=Fredoka+One&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- iziToast -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/izitoast/dist/css/iziToast.min.css">
     <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/izitoast/dist/js/iziToast.min.js"></script>
 
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        /* Big Popup iziToast Custom Styles */
+        .big-popup {
+            min-width: 500px !important;
+            min-height: 200px !important;
+            padding: 28px 36px !important;
+            border-radius: 24px !important;
+            box-shadow: 0 25px 70px rgba(0, 0, 0, 0.9) !important;
+            border: 2px solid rgba(255, 255, 255, 0.2) !important;
+            backdrop-filter: blur(20px) !important;
+            display: flex !important;
+            flex-direction: column !important;
+            justify-content: center !important;
+            align-items: center !important;
+            text-align: center !important;
+        }
+
+        .big-popup .iziToast-body {
+            margin: 0 !important;
+            padding: 0 !important;
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: center !important;
+        }
+
+        .big-popup .iziToast-icon {
+            font-size: 52px !important;
+            height: 52px !important;
+            margin: 0 0 16px 0 !important;
+            display: block !important;
+            float: none !important;
+        }
+
+        .big-popup .iziToast-texts {
+            float: none !important;
+            margin: 0 !important;
+            text-align: center !important;
+        }
+
+        .big-popup .iziToast-title {
+            font-size: 28px !important;
+            line-height: 38px !important;
+            display: block !important;
+            margin-bottom: 8px !important;
+            font-weight: 700 !important;
+        }
+
+        .big-popup .iziToast-message {
+            font-size: 20px !important;
+            line-height: 30px !important;
+            display: block !important;
+            color: #e2e8f0 !important;
+        }
+
+        .big-popup-win {
+            border-color: rgba(52, 211, 153, 0.6) !important;
+            box-shadow: 0 25px 70px rgba(0, 0, 0, 0.9), 0 0 45px rgba(52, 211, 153, 0.4) !important;
+        }
+
+        .big-popup-lose {
+            border-color: rgba(248, 113, 113, 0.6) !important;
+            box-shadow: 0 25px 70px rgba(0, 0, 0, 0.9), 0 0 45px rgba(248, 113, 113, 0.4) !important;
+        }
+
+        .big-popup-draw {
+            border-color: rgba(56, 189, 248, 0.6) !important;
+            box-shadow: 0 25px 70px rgba(0, 0, 0, 0.9), 0 0 45px rgba(56, 189, 248, 0.4) !important;
+        }
+
         body {
             font-family: 'Sarabun', sans-serif;
             background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
@@ -279,6 +351,7 @@
     let currentTurn = 'X';
     let gameStatus = 'waiting';
     let pollInterval = null;
+    let hasShownGameOverPopup = false;
 
     function fetchGameState() {
         $.get('<?= base_url('xo/get_state/') ?>' + ROOM_ID, function(room) {
@@ -287,8 +360,20 @@
             // หากห้องถูกลบ (เช่น อีกฝ่ายกดออกจากห้องไปแล้ว)
             if (room.error === 'not_found') {
                 if (pollInterval) clearInterval(pollInterval);
-                alert('ห้องเกมนี้ถูกปิด หรือผู้เล่นอีกฝ่ายได้ออกจากห้องแล้ว');
-                window.location.href = '<?= base_url('player') ?>';
+                if (typeof iziToast !== 'undefined') {
+                    iziToast.error({
+                        title: 'ห้องเกมถูกปิด',
+                        message: 'ห้องเกมนี้ถูกปิด หรือผู้เล่นอีกฝ่ายได้ออกจากห้องแล้ว',
+                        position: 'center',
+                        timeout: 3000,
+                        onClosed: function() {
+                            window.location.href = '<?= base_url('player') ?>';
+                        }
+                    });
+                } else {
+                    alert('ห้องเกมนี้ถูกปิด หรือผู้เล่นอีกฝ่ายได้ออกจากห้องแล้ว');
+                    window.location.href = '<?= base_url('player') ?>';
+                }
                 return;
             }
 
@@ -317,6 +402,7 @@
 
             // ไฮไลท์การ์ดคนที่มีเทิร์น
             if (gameStatus === 'playing') {
+                hasShownGameOverPopup = false;
                 if (currentTurn === 'X') {
                     $('#card-player-x').addClass('active-turn');
                     $('#card-player-o').removeClass('active-turn');
@@ -330,6 +416,7 @@
 
             // อัปเดตข้อความสถานะ
             if (gameStatus === 'waiting') {
+                hasShownGameOverPopup = false;
                 $('#game-status-text').html('<i class="fas fa-user-clock me-1 text-warning"></i> กำลังรอผู้เล่นอีกคนเข้าร่วม...');
                 $('#invite-helper-box').show();
                 $('#btn-rematch').hide();
@@ -352,6 +439,12 @@
                 } else {
                     $('#game-status-text').html('<strong class="text-danger">😢 คุณแพ้! พยายามใหม่อีกครั้งนะ</strong>');
                 }
+
+                // แสดง Big Popup iziToast เด้งขึ้นมาตรงกลางหน้าจอ
+                if (!hasShownGameOverPopup && typeof iziToast !== 'undefined') {
+                    hasShownGameOverPopup = true;
+                    showGameOverPopup(room.winner);
+                }
             }
 
             // อัปเดตช่องกระดาน
@@ -367,14 +460,113 @@
         }, 'json');
     }
 
+    // ฟังก์ชันแสดง Big Popup เมื่อเกมจบ
+    function showGameOverPopup(winner) {
+        if (winner === 'draw') {
+            iziToast.show({
+                class: 'big-popup big-popup-draw',
+                theme: 'dark',
+                icon: 'fas fa-handshake',
+                iconColor: '#38bdf8',
+                title: '🤝 เสมอกัน! (DRAW)',
+                titleColor: '#38bdf8',
+                message: 'ฝีมือสูสีมาก! กระดานนี้ไม่มีใครยอมใคร',
+                messageColor: '#e2e8f0',
+                backgroundColor: 'rgba(15, 23, 42, 0.96)',
+                position: 'center',
+                overlay: true,
+                zindex: 99999,
+                timeout: false,
+                close: true,
+                progressBar: false,
+                buttons: [
+                    ['<button class="btn btn-info text-dark fw-bold mt-3 px-4 py-2" style="font-size:16px; border-radius:12px; box-shadow: 0 4px 14px rgba(56, 189, 248, 0.4);"><i class="fas fa-redo me-2"></i>ประลองใหม่อีกตา</button>', function (instance, toast) {
+                        instance.hide({ transitionOut: 'fadeOut' }, toast, 'button');
+                        requestRematch();
+                    }, true]
+                ]
+            });
+        } else if (winner === mySymbol) {
+            iziToast.show({
+                class: 'big-popup big-popup-win',
+                theme: 'dark',
+                icon: 'fas fa-trophy',
+                iconColor: '#fbbf24',
+                title: '🎉 คุณชนะแล้ว! (VICTORY)',
+                titleColor: '#34d399',
+                message: 'ยินดีด้วย! คุณเป็นฝ่ายชนะในการแข่งขันรอบนี้ 🏆',
+                messageColor: '#e2e8f0',
+                backgroundColor: 'rgba(15, 23, 42, 0.96)',
+                position: 'center',
+                overlay: true,
+                zindex: 99999,
+                timeout: false,
+                close: true,
+                progressBar: false,
+                buttons: [
+                    ['<button class="btn btn-success fw-bold mt-3 px-4 py-2" style="font-size:16px; border-radius:12px; box-shadow: 0 4px 14px rgba(52, 211, 153, 0.4);"><i class="fas fa-redo me-2"></i>เล่นใหม่อีกครั้ง</button>', function (instance, toast) {
+                        instance.hide({ transitionOut: 'fadeOut' }, toast, 'button');
+                        requestRematch();
+                    }, true]
+                ]
+            });
+        } else {
+            let opponentSymbol = (mySymbol === 'X') ? 'O' : 'X';
+            let opponentName = (opponentSymbol === 'X') ? ($('#name-player-x').text() || 'คู่แข่ง') : ($('#name-player-o').text() || 'คู่แข่ง');
+            iziToast.show({
+                class: 'big-popup big-popup-lose',
+                theme: 'dark',
+                icon: 'fas fa-heart-broken',
+                iconColor: '#f87171',
+                title: '😢 คุณแพ้! (DEFEAT)',
+                titleColor: '#f87171',
+                message: escapeHtml(opponentName) + ' (' + opponentSymbol + ') เป็นฝ่ายชนะรอบนี้ พยายามใหม่อีกครั้งนะ!',
+                messageColor: '#e2e8f0',
+                backgroundColor: 'rgba(15, 23, 42, 0.96)',
+                position: 'center',
+                overlay: true,
+                zindex: 99999,
+                timeout: false,
+                close: true,
+                progressBar: false,
+                buttons: [
+                    ['<button class="btn btn-warning fw-bold mt-3 px-4 py-2" style="font-size:16px; border-radius:12px; box-shadow: 0 4px 14px rgba(251, 191, 36, 0.4);"><i class="fas fa-redo me-2"></i>ขอแก้มืออีกรอบ</button>', function (instance, toast) {
+                        instance.hide({ transitionOut: 'fadeOut' }, toast, 'button');
+                        requestRematch();
+                    }, true]
+                ]
+            });
+        }
+    }
+
     function cellClicked(index) {
         if (gameStatus !== 'playing') {
-            if (gameStatus === 'waiting') alert('กรุณารอเพื่อนเข้าร่วมห้องก่อนเริ่มเล่นครับ');
+            if (gameStatus === 'waiting') {
+                if (typeof iziToast !== 'undefined') {
+                    iziToast.warning({
+                        title: 'รอเพื่อนก่อน',
+                        message: 'กรุณารอเพื่อนเข้าร่วมห้องก่อนเริ่มเล่นครับ',
+                        position: 'topCenter',
+                        timeout: 2500
+                    });
+                } else {
+                    alert('กรุณารอเพื่อนเข้าร่วมห้องก่อนเริ่มเล่นครับ');
+                }
+            }
             return;
         }
 
         if (currentTurn !== mySymbol) {
-            alert('ยังไม่ใช่ตาของคุณครับ กรุณารอคู่แข่งเดินก่อน');
+            if (typeof iziToast !== 'undefined') {
+                iziToast.info({
+                    title: 'ยังไม่ถึงตาคุณ',
+                    message: 'ยังไม่ใช่ตาของคุณครับ กรุณารอคู่แข่งเดินก่อน (' + currentTurn + ')',
+                    position: 'topCenter',
+                    timeout: 2500
+                });
+            } else {
+                alert('ยังไม่ใช่ตาของคุณครับ กรุณารอคู่แข่งเดินก่อน');
+            }
             return;
         }
 
@@ -390,7 +582,16 @@
             if (res && res.status === 'ok') {
                 fetchGameState();
             } else if (res && res.error === 'not_your_turn') {
-                alert('ยังไม่ใช่ตาของคุณครับ');
+                if (typeof iziToast !== 'undefined') {
+                    iziToast.warning({
+                        title: 'แจ้งเตือน',
+                        message: 'ยังไม่ใช่ตาของคุณครับ',
+                        position: 'topCenter',
+                        timeout: 2500
+                    });
+                } else {
+                    alert('ยังไม่ใช่ตาของคุณครับ');
+                }
             }
         }, 'json');
     }
@@ -457,10 +658,42 @@
             room_id: ROOM_ID
         }, function(res) {
             if (res && res.status === 'ok') {
-                alert('ส่งคำเชิญเข้าห้องนี้ไปยัง ' + targetUsername + ' สำเร็จแล้ว!');
+                if (typeof iziToast !== 'undefined') {
+                    iziToast.success({
+                        title: 'ส่งคำเชิญสำเร็จ',
+                        message: 'ส่งคำเชิญเข้าห้องนี้ไปยัง ' + escapeHtml(targetUsername) + ' สำเร็จแล้ว!',
+                        position: 'topRight',
+                        timeout: 3500
+                    });
+                } else {
+                    alert('ส่งคำเชิญเข้าห้องนี้ไปยัง ' + targetUsername + ' สำเร็จแล้ว!');
+                }
                 $('#inviteOnlineFriendsModal').modal('hide');
+            } else {
+                let errMsg = (res && res.message) ? res.message : 'เกิดข้อผิดพลาดในการส่งคำเชิญ';
+                if (typeof iziToast !== 'undefined') {
+                    iziToast.error({
+                        title: 'ส่งคำเชิญไม่สำเร็จ',
+                        message: errMsg,
+                        position: 'topRight',
+                        timeout: 3500
+                    });
+                } else {
+                    alert(errMsg);
+                }
             }
-        }, 'json');
+        }, 'json').fail(function() {
+            if (typeof iziToast !== 'undefined') {
+                iziToast.error({
+                    title: 'ข้อผิดพลาด',
+                    message: 'เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์',
+                    position: 'topRight',
+                    timeout: 3500
+                });
+            } else {
+                alert('เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์');
+            }
+        });
     }
 
     $('#inviteOnlineFriendsModal').on('show.bs.modal', function() {

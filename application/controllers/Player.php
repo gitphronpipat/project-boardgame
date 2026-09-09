@@ -347,9 +347,16 @@ class Player extends CI_Controller
             }
         }
 
+        // เรียงลำดับคำเชิญล่าสุดให้อยู่บนสุด (Newest First)
+        usort($pending, function($a, $b) {
+            $ta = isset($a['time']) ? (int)$a['time'] : 0;
+            $tb = isset($b['time']) ? (int)$b['time'] : 0;
+            return $tb - $ta;
+        });
+
         return $this->output
             ->set_content_type('application/json')
-            ->set_output(json_encode($pending));
+            ->set_output(json_encode(array_values($pending)));
     }
 
     /**

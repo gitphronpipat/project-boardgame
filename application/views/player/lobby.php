@@ -311,8 +311,20 @@ $icons   = ['true' => 'success', 'false' => 'error', 'duplicate' => 'warning'];
             // หากห้องถูกปิดหรือโฮสต์ออกจากห้องแล้ว
             if (lobby.status === 'closed') {
                 if (lobbyPollInterval) clearInterval(lobbyPollInterval);
-                alert(lobby.message || 'ห้องล็อบบี้นี้ถูกปิดหรือโฮสต์ออกจากห้องแล้ว');
-                window.location.href = '<?= base_url('player') ?>';
+                if (typeof iziToast !== 'undefined') {
+                    iziToast.error({
+                        title: 'ล็อบบี้ถูกปิด',
+                        message: lobby.message || 'ห้องล็อบบี้นี้ถูกปิดหรือโฮสต์ออกจากห้องแล้ว',
+                        position: 'center',
+                        timeout: 3000,
+                        onClosed: function() {
+                            window.location.href = '<?= base_url('player') ?>';
+                        }
+                    });
+                } else {
+                    alert(lobby.message || 'ห้องล็อบบี้นี้ถูกปิดหรือโฮสต์ออกจากห้องแล้ว');
+                    window.location.href = '<?= base_url('player') ?>';
+                }
                 return;
             }
 
@@ -467,13 +479,41 @@ $icons   = ['true' => 'success', 'false' => 'error', 'duplicate' => 'warning'];
             room_id: CURRENT_ROOM_ID
         }, function(res) {
             if (res && res.status === 'ok') {
-                alert('ส่งคำเชิญเข้าล็อบบี้ไปยัง ' + targetUsername + ' สำเร็จแล้ว!');
+                if (typeof iziToast !== 'undefined') {
+                    iziToast.success({
+                        title: 'ส่งคำเชิญสำเร็จ',
+                        message: 'ส่งคำเชิญเข้าล็อบบี้ไปยัง ' + escapeHtml(targetUsername) + ' สำเร็จแล้ว!',
+                        position: 'topRight',
+                        timeout: 3500
+                    });
+                } else {
+                    alert('ส่งคำเชิญเข้าล็อบบี้ไปยัง ' + targetUsername + ' สำเร็จแล้ว!');
+                }
                 $('#inviteOnlineFriendsModal').modal('hide');
             } else {
-                alert('ไม่สามารถส่งคำเชิญได้: ' + (res.message || 'เกิดข้อผิดพลาด'));
+                let errMsg = (res && res.message) ? res.message : 'เกิดข้อผิดพลาดในการส่งคำเชิญ';
+                if (typeof iziToast !== 'undefined') {
+                    iziToast.error({
+                        title: 'ส่งคำเชิญไม่สำเร็จ',
+                        message: errMsg,
+                        position: 'topRight',
+                        timeout: 3500
+                    });
+                } else {
+                    alert('ไม่สามารถส่งคำเชิญได้: ' + errMsg);
+                }
             }
         }, 'json').fail(function() {
-            alert('เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์');
+            if (typeof iziToast !== 'undefined') {
+                iziToast.error({
+                    title: 'ข้อผิดพลาด',
+                    message: 'เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์',
+                    position: 'topRight',
+                    timeout: 3500
+                });
+            } else {
+                alert('เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์');
+            }
         });
     }
 

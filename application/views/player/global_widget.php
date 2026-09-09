@@ -2,7 +2,79 @@
      GLOBAL PLAYER WIDGET (Online Presence, Invites & Chat)
      ======================================================== -->
 
+<!-- iziToast CSS & JS -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/izitoast/dist/css/iziToast.min.css">
+<script src="https://cdn.jsdelivr.net/npm/izitoast/dist/js/iziToast.min.js"></script>
+
 <style>
+    /* Big Popup iziToast Custom Styles */
+    .big-popup {
+        min-width: 500px !important;
+        min-height: 200px !important;
+        padding: 28px 36px !important;
+        border-radius: 24px !important;
+        box-shadow: 0 25px 70px rgba(0, 0, 0, 0.9) !important;
+        border: 2px solid rgba(255, 255, 255, 0.2) !important;
+        backdrop-filter: blur(20px) !important;
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: center !important;
+        align-items: center !important;
+        text-align: center !important;
+    }
+
+    .big-popup .iziToast-body {
+        margin: 0 !important;
+        padding: 0 !important;
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+    }
+
+    .big-popup .iziToast-icon {
+        font-size: 52px !important;
+        height: 52px !important;
+        margin: 0 0 16px 0 !important;
+        display: block !important;
+        float: none !important;
+    }
+
+    .big-popup .iziToast-texts {
+        float: none !important;
+        margin: 0 !important;
+        text-align: center !important;
+    }
+
+    .big-popup .iziToast-title {
+        font-size: 28px !important;
+        line-height: 38px !important;
+        display: block !important;
+        margin-bottom: 8px !important;
+        font-weight: 700 !important;
+    }
+
+    .big-popup .iziToast-message {
+        font-size: 20px !important;
+        line-height: 30px !important;
+        display: block !important;
+        color: #e2e8f0 !important;
+    }
+
+    .big-popup-win {
+        border-color: rgba(52, 211, 153, 0.6) !important;
+        box-shadow: 0 25px 70px rgba(0, 0, 0, 0.9), 0 0 45px rgba(52, 211, 153, 0.4) !important;
+    }
+
+    .big-popup-lose {
+        border-color: rgba(248, 113, 113, 0.6) !important;
+        box-shadow: 0 25px 70px rgba(0, 0, 0, 0.9), 0 0 45px rgba(248, 113, 113, 0.4) !important;
+    }
+
+    .big-popup-draw {
+        border-color: rgba(56, 189, 248, 0.6) !important;
+        box-shadow: 0 25px 70px rgba(0, 0, 0, 0.9), 0 0 45px rgba(56, 189, 248, 0.4) !important;
+    }
+
     .text-muted {
         --bs-text-opacity: 1 !important;
         color: #ffffff !important;
@@ -370,10 +442,30 @@
         });
     }
 
+    let previousUnreadChats = -1;
+
     // 2. ดึงรายชื่อเพื่อนและสถานะออนไลน์
     function fetchOnlineUsers() {
         $.get(BASE_URL + 'player/get_online_users', function(data) {
             if (!data) return;
+
+            // แจ้งเตือน Toast เมื่อมีข้อความแชทใหม่เข้ามา
+            let currentUnread = parseInt(data.total_unread_chats) || 0;
+            if (previousUnreadChats !== -1 && currentUnread > previousUnreadChats) {
+                if (typeof iziToast !== 'undefined' && (!$('#chatBoxModal').hasClass('show'))) {
+                    iziToast.show({
+                        theme: 'dark',
+                        icon: 'fas fa-comments',
+                        iconColor: '#38bdf8',
+                        title: '💬 ข้อความแชทใหม่!',
+                        titleColor: '#38bdf8',
+                        message: 'คุณได้รับข้อความใหม่จากเพื่อน',
+                        position: 'bottomRight',
+                        timeout: 5000
+                    });
+                }
+            }
+            previousUnreadChats = currentUnread;
 
             // อัปเดตตัวเลขบน Navbar
             $('#navbar-online-count').text(data.online_count || 0);
@@ -453,7 +545,9 @@
         }, 'json');
     }
 
-    // 3. ตรวจสอบคำเชิญเล่นเกมที่ส่งมาหาเรา
+    let alertedInviteIds = {};
+
+    // 3. ตรวจสอบคำเชิญเล่นเกมที่ส่งมาหาเรา (เรียงลำดับใหม่ล่าสุดอยู่บนสุด)
     function fetchInvitations() {
         $.get(BASE_URL + 'player/get_invitations', function(invites) {
             if (!invites || invites.length === 0) {
@@ -462,7 +556,45 @@
                 return;
             }
 
+            // จัดเรียงคำเชิญ: ล่าสุดอยู่บนสุดเสมอ (Newest First)
+            invites.sort(function(a, b) {
+                return (b.time || 0) - (a.time || 0);
+            });
+
             $('#navbar-invite-badge').text(invites.length).show();
+
+            // ตรวจสอบคำเชิญใหม่เพื่อแสดง iziToast แจ้งเตือนเด้งขึ้นมา
+            invites.forEach(function(inv) {
+                if (!alertedInviteIds[inv.id]) {
+                    alertedInviteIds[inv.id] = true;
+                    if (typeof iziToast !== 'undefined') {
+                        iziToast.show({
+                            theme: 'dark',
+                            icon: 'fas fa-gamepad',
+                            iconColor: '#818cf8',
+                            title: '🎮 คำเชิญเล่นเกมใหม่!',
+                            titleColor: '#818cf8',
+                            message: `<strong>${escapeHtml(inv.from)}</strong> ชวนคุณเข้าเล่น <strong>${escapeHtml(inv.game_name || inv.game_key)}</strong>`,
+                            messageColor: '#ffffff',
+                            backgroundColor: '#1e1b4b',
+                            position: 'topRight',
+                            timeout: 12000,
+                            close: true,
+                            progressBarColor: '#6366f1',
+                            buttons: [
+                                ['<button class="btn btn-sm btn-success px-2 py-1 me-1" style="font-size:12px; font-weight:600;"><i class="fas fa-check me-1"></i>ตอบรับ</button>', function (instance, toast) {
+                                    instance.hide({ transitionOut: 'fadeOut' }, toast, 'button');
+                                    respondInvite(inv.id, 'accept');
+                                }, true],
+                                ['<button class="btn btn-sm btn-outline-danger px-2 py-1" style="font-size:12px;"><i class="fas fa-times me-1"></i>ปฏิเสธ</button>', function (instance, toast) {
+                                    instance.hide({ transitionOut: 'fadeOut' }, toast, 'button');
+                                    respondInvite(inv.id, 'decline');
+                                }]
+                            ]
+                        });
+                    }
+                }
+            });
 
             let html = '';
             invites.forEach(function(inv) {
@@ -499,8 +631,26 @@
         }, function(res) {
             if (res && res.status === 'ok') {
                 if (action === 'accept' && res.redirect_url) {
-                    window.location.href = res.redirect_url;
+                    if (typeof iziToast !== 'undefined') {
+                        iziToast.info({
+                            title: 'เข้าสู่เกม',
+                            message: 'กำลังนำคุณเข้าสู่ห้องเล่นเกม...',
+                            position: 'topRight',
+                            timeout: 1500
+                        });
+                    }
+                    setTimeout(function() {
+                        window.location.href = res.redirect_url;
+                    }, 400);
                 } else {
+                    if (typeof iziToast !== 'undefined') {
+                        iziToast.info({
+                            title: 'ปฏิเสธคำเชิญ',
+                            message: 'ปฏิเสธคำเชิญเรียบร้อยแล้ว',
+                            position: 'topRight',
+                            timeout: 2500
+                        });
+                    }
                     fetchInvitations();
                 }
             }
@@ -522,7 +672,7 @@
         loadChatMessages();
 
         if (chatPollInterval) clearInterval(chatPollInterval);
-        chatPollInterval = setInterval(loadChatMessages, 3000);
+        chatPollInterval = setInterval(loadChatMessages, 4000);
     }
 
     function loadChatMessages() {
@@ -673,10 +823,10 @@
         fetchOnlineUsers();
         fetchInvitations();
 
-        // ตั้งเวลาทำงานต่อเนื่อง
-        setInterval(function() { sendHeartbeat(); }, 20000);
-        setInterval(function() { fetchInvitations(); }, 4000);
-        setInterval(function() { fetchOnlineUsers(); }, 10000);
+        // ตั้งเวลาทำงานต่อเนื่อง (ปรับความถี่เพื่อลดภาระเครื่องและเพิ่มความเร็วเว็บ)
+        setInterval(function() { sendHeartbeat(); }, 30000);
+        setInterval(function() { fetchInvitations(); }, 8000);
+        setInterval(function() { fetchOnlineUsers(); }, 15000);
 
         $('#chatBoxModal').on('hidden.bs.modal', function () {
             if (chatPollInterval) clearInterval(chatPollInterval);
