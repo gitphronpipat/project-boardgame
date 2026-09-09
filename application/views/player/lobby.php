@@ -378,20 +378,30 @@ $icons   = ['true' => 'success', 'false' => 'error', 'duplicate' => 'warning'];
 
             // ถ้า Host กดเริ่มเกมแล้ว -> พาผู้เล่นทุกคนเข้าห้องเกมทันที
             if (lobby.status === 'started' && lobby.redirect_url) {
+                isGameStarting = true;
                 clearInterval(lobbyPollInterval);
                 window.location.href = lobby.redirect_url;
             }
         }, 'json');
     }
 
+    var isGameStarting = false;
+
     // Host กดเริ่มเกม
     function hostStartGame() {
+        isGameStarting = true;
         $('#btn-start-game').prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i> กำลังเข้าเกม...');
         $.post('<?= base_url('player/start_lobby_game/') ?>' + CURRENT_ROOM_ID, function(res) {
             if (res && res.status === 'ok' && res.redirect_url) {
                 window.location.href = res.redirect_url;
+            } else {
+                isGameStarting = false;
+                $('#btn-start-game').prop('disabled', false).html('<i class="fas fa-play me-2"></i>เริ่มเกม');
             }
-        }, 'json');
+        }, 'json').fail(function() {
+            isGameStarting = false;
+            $('#btn-start-game').prop('disabled', false).html('<i class="fas fa-play me-2"></i>เริ่มเกม');
+        });
     }
 
     function loadLobbyOnlineFriends() {
@@ -480,9 +490,9 @@ $icons   = ['true' => 'success', 'false' => 'error', 'duplicate' => 'warning'];
         fetchLobbyState();
         lobbyPollInterval = setInterval(fetchLobbyState, 1500);
 
-        // หากผู้ใช้ปิดหน้าต่างหรือกด Back ออกจากล็อบบี้ ให้เคลียร์ห้องใน Firebase
+        // หากผู้ใช้ปิดหน้าต่างหรือกด Back ออกจากล็อบบี้ ให้เคลียร์ห้องใน Firebase (เฉพาะเมื่อไม่ได้กำลังเริ่มเกม)
         window.addEventListener('beforeunload', function() {
-            if (navigator.sendBeacon) {
+            if (!isGameStarting && navigator.sendBeacon) {
                 navigator.sendBeacon('<?= base_url('player/leave_lobby/') ?>' + CURRENT_ROOM_ID);
             }
         });

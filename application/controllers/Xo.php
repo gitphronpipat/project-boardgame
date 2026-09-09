@@ -279,15 +279,31 @@ class Xo extends CI_Controller
     }
 
     /**
-     * ออกจากห้องเกม — ลบห้องเกมและห้องล็อบบี้ออกทันทีเพื่อไม่ให้ค้างในระบบ
+     * ออกจากห้องเกม — ลบห้องเกมเฉพาะเมื่อเป็น Host หรือเกมจบแล้ว
      */
     public function leave($room_id = null)
     {
         $username = $this->session->userdata('username');
         if ($room_id) {
-            $this->firebase_lib->delete('games/xo', $room_id);
-            $this->firebase_lib->delete('xo_rooms', $room_id);
-            $this->firebase_lib->delete('lobbies', $room_id);
+            $room = $this->firebase_lib->get_by_key('games/xo', $room_id);
+            if ($room) {
+                $is_host = (isset($room['host']) && $room['host'] === $username);
+                $is_finished = (isset($room['status']) && $room['status'] === 'finished');
+
+                if ($is_host || $is_finished) {
+                    $this->firebase_lib->delete('games/xo', $room_id);
+                    $this->firebase_lib->delete('xo_rooms', $room_id);
+                    $this->firebase_lib->delete('lobbies', $room_id);
+                } else {
+                    // หากเป็น Player O ให้ออกจากห้องและเปลี่ยนสถานะกลับเป็น waiting
+                    if (isset($room['player_o']) && $room['player_o'] === $username) {
+                        $this->firebase_lib->update('games/xo', $room_id, [
+                            'player_o' => null,
+                            'status'   => 'waiting',
+                        ]);
+                    }
+                }
+            }
         }
 
         if ($username) {
@@ -297,6 +313,10 @@ class Xo extends CI_Controller
                 'room_id'     => '',
                 'last_active' => time(),
             ]);
+        }
+
+        if ($this->input->is_ajax_request()) {
+            return $this->output->set_content_type('application/json')->set_output(json_encode(['status' => 'ok']));
         }
         redirect('player');
     }

@@ -79,13 +79,34 @@ class Player extends CI_Controller
                 'status'   => 'waiting',
                 'created'  => time(),
             ]);
+            redirect('player/lobby/' . $game_key . '/' . $room_id);
+            return;
         } else {
-            // ตรวจสอบว่าห้องยังมีอยู่หรือไม่
+            // ตรวจสอบสถานะห้อง
             $existing_lobby = $this->firebase_lib->get_by_key('lobbies', $room_id);
             if (!$existing_lobby) {
-                $this->session->set_flashdata('result', 'false');
-                $this->session->set_flashdata('message', 'ห้องล็อบบี้นี้ถูกปิดหรือไม่มีอยู่แล้ว');
-                redirect('player');
+                // 1. ตรวจสอบว่ามีห้องใน games/xo อยู่หรือไม่ (กรณีเพื่อนกดรับคำเชิญจากในเกม OX โดยตรง)
+                $xo_room = $this->firebase_lib->get_by_key('games/xo', $room_id);
+                if ($xo_room) {
+                    redirect('xo/room/' . $room_id);
+                    return;
+                }
+
+                // 2. หากไม่พบห้องใน lobbies ให้สร้างห้องใหม่ด้วย room_id นี้ เพื่อรองรับผู้เล่นเข้าเล่น ไม่เตะออก
+                $this->firebase_lib->update('lobbies', $room_id, [
+                    'room_id'  => $room_id,
+                    'game_key' => $game_key,
+                    'host'     => $username,
+                    'players'  => [$username],
+                    'status'   => 'waiting',
+                    'created'  => time(),
+                ]);
+            } else {
+                // ถ้าห้องนี้ Host กดเริ่มเกมไปแล้ว ให้พาเข้าเกมเลยทันที
+                if (isset($existing_lobby['status']) && $existing_lobby['status'] === 'started' && !empty($existing_lobby['redirect_url'])) {
+                    redirect($existing_lobby['redirect_url']);
+                    return;
+                }
             }
         }
 
@@ -352,9 +373,21 @@ class Player extends CI_Controller
 
             $redirect_url = base_url('player');
             if ($invite) {
-                // ส่งเพื่อนไปที่ห้อง Lobby ของเกมนั้นก่อนเสมอ
                 $game_key = ($invite['game_key'] === 'xo') ? 'tictactoe' : $invite['game_key'];
-                $redirect_url = base_url('player/lobby/' . $game_key . '/' . $invite['room_id']);
+                $target_room_id = $invite['room_id'];
+
+                // ตรวจสอบว่าห้องนี้เปิดเล่นอยู่ใน games/xo แล้วหรือไม่
+                $xo_room = $this->firebase_lib->get_by_key('games/xo', $target_room_id);
+                if ($xo_room) {
+                    $redirect_url = base_url('xo/room/' . $target_room_id);
+                } else {
+                    $lobby = $this->firebase_lib->get_by_key('lobbies', $target_room_id);
+                    if ($lobby && isset($lobby['status']) && $lobby['status'] === 'started' && !empty($lobby['redirect_url'])) {
+                        $redirect_url = $lobby['redirect_url'];
+                    } else {
+                        $redirect_url = base_url('player/lobby/' . $game_key . '/' . $target_room_id);
+                    }
+                }
             }
 
             return $this->output
@@ -390,6 +423,15 @@ class Player extends CI_Controller
         $lobby = $this->firebase_lib->get_by_key('lobbies', $room_id);
 
         if (!$lobby) {
+            // ตรวจสอบว่าโฮสต์กดเริ่มเกมและห้องเปลี่ยนเป็นเกม OX แล้วหรือยัง
+            $xo_room = $this->firebase_lib->get_by_key('games/xo', $room_id);
+            if ($xo_room) {
+                return $this->output->set_content_type('application/json')->set_output(json_encode([
+                    'status'       => 'started',
+                    'redirect_url' => base_url('xo/room/' . $room_id),
+                ]));
+            }
+
             return $this->output->set_content_type('application/json')->set_output(json_encode([
                 'status'  => 'closed',
                 'message' => 'ห้องล็อบบี้นี้ถูกปิดหรือออกจากห้องแล้ว',
@@ -427,7 +469,7 @@ class Player extends CI_Controller
     }
 
     /**
-     * ออกจากห้องล็อบบี้ — ลบห้องทิ้งทันทีหากเป็น Host หรือไม่มีผู้เล่นเหลือ เพื่อไม่ให้ข้อมูลค้างในระบบ
+     * ออกจากห้องล็อบบี้ — ลบห้องทิ้งเมื่อโฮสต์ออก หรือไม่มีผู้เล่นเหลือ (ยกเว้นตอนที่เกมเริ่มแล้ว)
      */
     public function leave_lobby($room_id = null)
     {
@@ -436,10 +478,19 @@ class Player extends CI_Controller
             $this->load->library('firebase_lib');
             $lobby = $this->firebase_lib->get_by_key('lobbies', $room_id);
             if ($lobby) {
+                // ถ้าเกมเริ่มแล้ว (status === 'started') ห้ามลบห้องเด็ดขาด! เพราะผู้เล่นกำลังย้ายเข้าหน้าเกม
+                if (isset($lobby['status']) && $lobby['status'] === 'started') {
+                    if ($this->input->is_ajax_request()) {
+                        return $this->output->set_content_type('application/json')->set_output(json_encode(['status' => 'ok']));
+                    }
+                    redirect('player');
+                    return;
+                }
+
                 $is_host = (isset($lobby['host']) && $lobby['host'] === $current_user);
                 $players = isset($lobby['players']) && is_array($lobby['players']) ? $lobby['players'] : [];
 
-                // ถ้าเป็น Host หรือไม่มีผู้เล่นอื่นเหลือ ให้ลบห้องทิ้งทันที
+                // ถ้าเป็น Host หรือไม่มีผู้เล่นอื่นเหลือ ให้ลบห้องทิ้ง
                 if ($is_host || count($players) <= 1) {
                     $this->firebase_lib->delete('lobbies', $room_id);
                 } else {
@@ -486,6 +537,27 @@ class Player extends CI_Controller
         $redirect_url = base_url('xo/room/' . $room_id);
         if ($game_key !== 'tictactoe' && $game_key !== 'xo') {
             $redirect_url = base_url('player/lobby/' . $game_key . '/' . $room_id);
+        }
+
+        $players = isset($lobby['players']) && is_array($lobby['players']) ? $lobby['players'] : [$lobby['host']];
+        $host = isset($lobby['host']) ? $lobby['host'] : $current_user;
+        $guest = (count($players) > 1) ? $players[1] : null;
+
+        // ถ้าเป็นเกม OX ให้สร้างห้องเกม games/xo/{room_id} ใน Firebase รอไว้ล่วงหน้าทันที
+        if ($game_key === 'tictactoe' || $game_key === 'xo') {
+            $this->firebase_lib->update('games/xo', $room_id, [
+                'id'         => $room_id,
+                'host'       => $host,
+                'player_x'   => $host,
+                'player_o'   => $guest,
+                'board'      => ['', '', '', '', '', '', '', '', ''],
+                'turn'       => 'X',
+                'status'     => !empty($guest) ? 'playing' : 'waiting',
+                'winner'     => null,
+                'score_x'    => 0,
+                'score_o'    => 0,
+                'created_at' => time(),
+            ]);
         }
 
         $this->firebase_lib->update('lobbies', $room_id, [

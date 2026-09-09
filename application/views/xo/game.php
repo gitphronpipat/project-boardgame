@@ -473,12 +473,6 @@
         // Polling ซิงค์สถานะกระดานทุกๆ 1 วินาทีแบบเรียลไทม์
         pollInterval = setInterval(fetchGameState, 1000);
 
-        // หากผู้เล่นปิดหน้าต่างหรือกดย้อนกลับ ให้ออกจากห้องและล้างข้อมูลห้อง
-        window.addEventListener('beforeunload', function() {
-            if (navigator.sendBeacon) {
-                navigator.sendBeacon('<?= base_url('xo/leave/') ?>' + ROOM_ID);
-            }
-        });
     });
 </script>
 
