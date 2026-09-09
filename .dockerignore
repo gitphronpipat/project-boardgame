@@ -1,0 +1,7 @@
+.git
+.gitignore
+.vercel
+.vercelignore
+vercel.json
+DB/
+*.md
