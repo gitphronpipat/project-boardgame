@@ -24,7 +24,9 @@ WORKDIR /var/www/html
 COPY . /var/www/html/
 
 # 7. กำหนดสิทธิ์โฟลเดอร์สำหรับ Apache และ Session/Logs/Cache
-RUN chown -R www-data:www-data /var/www/html \
+RUN mkdir -p /var/lib/php/sessions /tmp \
+    && chmod 1777 /var/lib/php/sessions /tmp \
+    && chown -R www-data:www-data /var/www/html \
     && chmod -R 755 /var/www/html \
     && chmod -R 777 /var/www/html/application/logs \
     && chmod -R 777 /var/www/html/application/cache

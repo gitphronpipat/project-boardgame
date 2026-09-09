@@ -62,6 +62,9 @@ class Auth extends CI_Controller
                     'last_active' => time(),
                 ]);
 
+                // บันทึก session ลงดิสก์ทันทีก่อน redirect ป้องกัน session หาย
+                session_write_close();
+
                 // เข้าสู่หน้าเลือกเกม (player) ทั้ง admin และ player
                 redirect('player');
             } else {

@@ -8,6 +8,8 @@ class Player extends CI_Controller
         parent::__construct();
         // ต้อง login ก่อน
         if (!$this->session->userdata('logged_in')) {
+            $this->session->set_flashdata('result', 'false');
+            $this->session->set_flashdata('message', 'กรุณาเข้าสู่ระบบก่อนใช้งาน');
             redirect('auth/login');
         }
         $this->load->model('Game_model', 'game');
