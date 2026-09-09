@@ -1,0 +1,10 @@
+# Ignore root index.php so Vercel does not serve it as a static download file
+index.php
+
+# Ignore dev and local files
+.env
+.git
+DB/
+README.md
+readme.rst
+license.txt
