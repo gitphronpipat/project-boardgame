@@ -383,10 +383,13 @@ class Player extends CI_Controller
                 $game_key = ($invite['game_key'] === 'xo') ? 'tictactoe' : $invite['game_key'];
                 $target_room_id = $invite['room_id'];
 
-                // ตรวจสอบว่าห้องนี้เปิดเล่นอยู่ใน games/xo แล้วหรือไม่
+                // ตรวจสอบว่าห้องนี้เปิดเล่นอยู่ใน games/xo หรือ games/uno แล้วหรือไม่
                 $xo_room = $this->firebase_lib->get_by_key('games/xo', $target_room_id);
+                $uno_room = $this->firebase_lib->get_by_key('games/uno', $target_room_id);
                 if ($xo_room) {
                     $redirect_url = base_url('xo/room/' . $target_room_id);
+                } else if ($uno_room) {
+                    $redirect_url = base_url('uno/room/' . $target_room_id);
                 } else {
                     $lobby = $this->firebase_lib->get_by_key('lobbies', $target_room_id);
                     if ($lobby && isset($lobby['status']) && $lobby['status'] === 'started' && !empty($lobby['redirect_url'])) {
@@ -430,12 +433,20 @@ class Player extends CI_Controller
         $lobby = $this->firebase_lib->get_by_key('lobbies', $room_id);
 
         if (!$lobby) {
-            // ตรวจสอบว่าโฮสต์กดเริ่มเกมและห้องเปลี่ยนเป็นเกม OX แล้วหรือยัง
+            // ตรวจสอบว่าโฮสต์กดเริ่มเกมและห้องเปลี่ยนเป็นเกม OX หรือ UNO แล้วหรือยัง
             $xo_room = $this->firebase_lib->get_by_key('games/xo', $room_id);
             if ($xo_room) {
                 return $this->output->set_content_type('application/json')->set_output(json_encode([
                     'status'       => 'started',
                     'redirect_url' => base_url('xo/room/' . $room_id),
+                ]));
+            }
+
+            $uno_room = $this->firebase_lib->get_by_key('games/uno', $room_id);
+            if ($uno_room) {
+                return $this->output->set_content_type('application/json')->set_output(json_encode([
+                    'status'       => 'started',
+                    'redirect_url' => base_url('uno/room/' . $room_id),
                 ]));
             }
 
@@ -485,8 +496,10 @@ class Player extends CI_Controller
             $this->load->library('firebase_lib');
             $lobby = $this->firebase_lib->get_by_key('lobbies', $room_id);
             if ($lobby) {
-                // ถ้าเกมเริ่มแล้ว (status === 'started') ห้ามลบห้องเด็ดขาด! เพราะผู้เล่นกำลังย้ายเข้าหน้าเกม
-                if (isset($lobby['status']) && $lobby['status'] === 'started') {
+                // ถ้าเกมเริ่มแล้ว (status === 'started') หรือห้องเกมกำลังเล่นอยู่ใน games/uno / games/xo ห้ามลบห้องเด็ดขาด!
+                $uno_room = $this->firebase_lib->get_by_key('games/uno', $room_id);
+                $xo_room  = $this->firebase_lib->get_by_key('games/xo', $room_id);
+                if ((isset($lobby['status']) && $lobby['status'] === 'started') || $uno_room || $xo_room) {
                     if ($this->input->is_ajax_request()) {
                         return $this->output->set_content_type('application/json')->set_output(json_encode(['status' => 'ok']));
                     }
@@ -509,14 +522,17 @@ class Player extends CI_Controller
                 }
             }
 
-            // อัปเดตสถานะ Presence เป็น Online ว่าง
+            // อัปเดตสถานะ Presence เป็น Online ว่าง (เฉพาะเมื่อไม่ได้กำลังเล่นเกมอยู่)
             if ($current_user) {
-                $this->firebase_lib->update('presence', $current_user, [
-                    'status'      => 'online',
-                    'game'        => '',
-                    'room_id'     => '',
-                    'last_active' => time(),
-                ]);
+                $user_presence = $this->firebase_lib->get_by_key('presence', $current_user);
+                if (!$user_presence || !isset($user_presence['status']) || $user_presence['status'] !== 'playing') {
+                    $this->firebase_lib->update('presence', $current_user, [
+                        'status'      => 'online',
+                        'game'        => '',
+                        'room_id'     => '',
+                        'last_active' => time(),
+                    ]);
+                }
             }
         }
 
@@ -541,8 +557,11 @@ class Player extends CI_Controller
 
         // กำหนด URL ของเกมที่จะเล่น
         $game_key = isset($lobby['game_key']) ? $lobby['game_key'] : 'tictactoe';
-        $redirect_url = base_url('xo/room/' . $room_id);
-        if ($game_key !== 'tictactoe' && $game_key !== 'xo') {
+        if ($game_key === 'uno') {
+            $redirect_url = base_url('uno/room/' . $room_id);
+        } else if ($game_key === 'tictactoe' || $game_key === 'xo') {
+            $redirect_url = base_url('xo/room/' . $room_id);
+        } else {
             $redirect_url = base_url('player/lobby/' . $game_key . '/' . $room_id);
         }
 
@@ -565,6 +584,13 @@ class Player extends CI_Controller
                 'score_o'    => 0,
                 'created_at' => time(),
             ]);
+        }
+
+        // ถ้าเป็นเกม UNO ให้สร้างห้องเกม games/uno/{room_id} รอไว้ล่วงหน้าทันที
+        if ($game_key === 'uno') {
+            $this->load->model('Uno_model', 'uno_model');
+            $uno_state = $this->uno_model->create_game_state($room_id, $host, $players);
+            $this->firebase_lib->set('games/uno', $room_id, $uno_state);
         }
 
         $this->firebase_lib->update('lobbies', $room_id, [

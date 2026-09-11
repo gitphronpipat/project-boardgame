@@ -12,6 +12,7 @@ class Firebase_lib {
     public $database_url;
     private $api_key;
     private $auth_token = null;
+    private $ch = null;
 
     // เก็บผลลัพธ์ request ล่าสุดสำหรับวินิจฉัยปัญหา
     public $last_error = null;
@@ -31,6 +32,14 @@ class Firebase_lib {
         $cred_path = $this->CI->config->item('firebase_credentials_path');
         if ($cred_path && file_exists($cred_path)) {
             $this->auth_token = $this->_get_access_token($cred_path);
+        }
+    }
+
+    public function __destruct()
+    {
+        if ($this->ch !== null) {
+            @curl_close($this->ch);
+            $this->ch = null;
         }
     }
 
@@ -123,6 +132,18 @@ class Firebase_lib {
     }
 
     /**
+     * บันทึกข้อมูลแบบเขียนทับทั้งหมด (PUT) — ป้องกันปัญหา array index ค้างจากการใช้ PATCH
+     * @param string $path  เช่น 'games/uno'
+     * @param string $key   Firebase key
+     * @param array  $data  ข้อมูลที่จะบันทึก
+     * @return array
+     */
+    public function set($path, $key, $data)
+    {
+        return $this->_request('PUT', $path . '/' . $key . '.json', $data);
+    }
+
+    /**
      * ลบข้อมูลตาม key (ถ้าไม่ระบุ key จะลบทั้ง collection / path)
      * @param string $path  เช่น 'user' หรือ 'lobbies'
      * @param string $key   Firebase key
@@ -140,7 +161,7 @@ class Firebase_lib {
     // ========================================================
 
     /**
-     * ส่ง HTTP request ไปยัง Firebase REST API
+     * ส่ง HTTP request ไปยัง Firebase REST API พร้อมระบบ Auto-retry ป้องกันปัญหาเน็ตเวิร์กสะดุด
      */
     private function _request($method, $uri, $data = null)
     {
@@ -157,13 +178,22 @@ class Firebase_lib {
             }
         }
 
-        $ch = curl_init();
+        if ($this->ch === null) {
+            $this->ch = curl_init();
+        } else {
+            curl_reset($this->ch);
+        }
+        $ch = $this->ch;
+
         curl_setopt($ch, CURLOPT_URL, $url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         // ปิด SSL verify ชั่วคราวเพื่อป้องกันปัญหา local cURL CA บน Windows
         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
         curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 15);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 12);
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
+        curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
+        curl_setopt($ch, CURLOPT_TCP_NODELAY, 1);
 
         $headers = ['Content-Type: application/json'];
 
@@ -187,19 +217,34 @@ class Firebase_lib {
 
         curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
         $this->last_url = $url;
-        $response = curl_exec($ch);
-        $this->last_http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $this->last_raw_response = $response;
+
+        // Auto-retry loop ป้องกันปัญหา transient network blip บนคลาวด์
+        $max_retries = ($method === 'GET') ? 2 : 1;
+        $attempt = 0;
+        $response = false;
+
+        while ($attempt <= $max_retries) {
+            $response = curl_exec($ch);
+            $this->last_http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $this->last_raw_response = $response;
+
+            if (!curl_errno($ch) && $this->last_http_code < 500 && $response !== false) {
+                break; // สำเร็จ
+            }
+
+            $attempt++;
+            if ($attempt <= $max_retries) {
+                usleep(100000); // รอ 100ms ก่อนลองใหม่
+            }
+        }
 
         if (curl_errno($ch)) {
             $this->last_error = curl_error($ch);
             log_message('error', 'Firebase cURL Error: ' . $this->last_error);
-            curl_close($ch);
             return null;
         }
 
         $this->last_error = null;
-        curl_close($ch);
         return json_decode($response, true);
     }
 

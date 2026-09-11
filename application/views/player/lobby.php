@@ -206,7 +206,12 @@ $icons   = ['true' => 'success', 'false' => 'error', 'duplicate' => 'warning'];
                 <div class="lobby-desc"><?= $game['desc'] ?></div>
 
                 <div class="lobby-status">
-                    <h5 id="lobby-count-text"><i class="fas fa-users me-1"></i>ผู้เล่นในห้อง (<span id="current-players-count">1</span>/<?= explode('-', str_replace(' คน', '', $game['players']))[0] ?>)</h5>
+                    <?php
+                    $players_raw = str_replace(' คน', '', $game['players']);
+                    $player_parts = explode('-', $players_raw);
+                    $max_players = isset($player_parts[1]) ? trim($player_parts[1]) : trim($player_parts[0]);
+                    ?>
+                    <h5 id="lobby-count-text"><i class="fas fa-users me-1"></i>ผู้เล่นในห้อง (<span id="current-players-count">1</span>/<?= $max_players ?>)</h5>
 
                     <!-- ช่องแสดงผู้เล่นในห้อง (ซิงค์เรียลไทม์) -->
                     <div id="lobby-player-slots">

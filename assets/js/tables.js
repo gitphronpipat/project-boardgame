@@ -18,7 +18,7 @@ $(document).ready(function () {
     responsive: true,         // รองรับมือถือ
     autoWidth: false,         // ปิด — จัดความกว้างเอง
 
-		columnDefs: [
+		columnDefs: [	
 			// เปิด reset ทุก column
 
 			// ยกเว้น column สุดท้าย (ปุ่มจัดการ) ปิดเรียงเลย

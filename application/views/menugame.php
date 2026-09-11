@@ -29,11 +29,11 @@ return [
     'uno' => [
         'name'     => 'UNO',
         'icon'     => '🃏',
-        'desc'     => 'การ์ดเกม UNO สุดมันส์ แกล้งเพื่อนให้สุด',
-        'players'  => '2-6 คน',
+        'desc'     => 'การ์ดเกม UNO สากลสุดมันส์ วางแผนทิ้งการ์ด แกล้งเพื่อนให้สุด',
+        'players'  => '2-12 คน',
         'color'    => '#dc2626',
         'category' => 'card',
-        'status'   => 'coming_soon',
+        'status'   => 'ready',
         'route'    => 'uno',
     ],
     'snake-ladder' => [

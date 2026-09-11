@@ -63,6 +63,18 @@ $route['xo/make_move/(:any)'] = 'xo/make_move/$1';
 $route['xo/rematch/(:any)'] = 'xo/rematch/$1';
 $route['xo/leave/(:any)'] = 'xo/leave/$1';
 
+// UNO Game Routes
+$route['uno'] = 'uno/index';
+$route['uno/room/(:any)'] = 'uno/room/$1';
+$route['uno/get_state/(:any)'] = 'uno/get_state/$1';
+$route['uno/play_card/(:any)'] = 'uno/play_card/$1';
+$route['uno/draw_card/(:any)'] = 'uno/draw_card/$1';
+$route['uno/pass_turn/(:any)'] = 'uno/pass_turn/$1';
+$route['uno/call_uno/(:any)'] = 'uno/call_uno/$1';
+$route['uno/catch_uno/(:any)'] = 'uno/catch_uno/$1';
+$route['uno/rematch/(:any)'] = 'uno/rematch/$1';
+$route['uno/leave/(:any)'] = 'uno/leave/$1';
+
 $route['404_override']       = '';
 $route['translate_uri_dashes'] = FALSE;
 

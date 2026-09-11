@@ -88,7 +88,7 @@ class Xo extends CI_Controller
             ],
         ];
 
-        $this->load->view('xo/game', $data);
+        $this->load->view('games/xo/game', $data);
     }
 
     /**

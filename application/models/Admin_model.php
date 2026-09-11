@@ -13,8 +13,6 @@ class Admin_model extends CI_Model {
     {
         parent::__construct();
         $this->load->library('firebase_lib');
-        // ปิดการสร้าง admin อัตโนมัติแล้ว
-        $this->remove_default_players();
     }
 
     /**
