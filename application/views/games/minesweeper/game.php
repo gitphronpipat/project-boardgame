@@ -551,9 +551,6 @@ $image_base_url = base_url('application/views/games/minesweeper/image/');
             <button class="btn-ms" onclick="triggerRematch()">
                 <i class="fas fa-redo text-info"></i> เริ่มเกมใหม่
             </button>
-            <a href="<?= base_url('minesweeper/room/' . $room_id . '?theme=rezero') ?>" class="btn-ms" style="border-color: #a855f7; color: #c084fc;" title="สลับไปเล่นธีมอนิเมะ Re:Zero">
-                <i class="fas fa-gem me-1 text-danger"></i> ธีม Re:Zero 🖤
-            </a>
         </div>
     </div>
 
