@@ -383,13 +383,16 @@ class Player extends CI_Controller
                 $game_key = ($invite['game_key'] === 'xo') ? 'tictactoe' : $invite['game_key'];
                 $target_room_id = $invite['room_id'];
 
-                // ตรวจสอบว่าห้องนี้เปิดเล่นอยู่ใน games/xo หรือ games/uno แล้วหรือไม่
+                // ตรวจสอบว่าห้องนี้เปิดเล่นอยู่ใน games/xo, games/uno หรือ games/minesweeper แล้วหรือไม่
                 $xo_room = $this->firebase_lib->get_by_key('games/xo', $target_room_id);
                 $uno_room = $this->firebase_lib->get_by_key('games/uno', $target_room_id);
+                $minesweeper_room = $this->firebase_lib->get_by_key('games/minesweeper', $target_room_id);
                 if ($xo_room) {
                     $redirect_url = base_url('xo/room/' . $target_room_id);
                 } else if ($uno_room) {
                     $redirect_url = base_url('uno/room/' . $target_room_id);
+                } else if ($minesweeper_room) {
+                    $redirect_url = base_url('minesweeper/room/' . $target_room_id);
                 } else {
                     $lobby = $this->firebase_lib->get_by_key('lobbies', $target_room_id);
                     if ($lobby && isset($lobby['status']) && $lobby['status'] === 'started' && !empty($lobby['redirect_url'])) {
@@ -447,6 +450,14 @@ class Player extends CI_Controller
                 return $this->output->set_content_type('application/json')->set_output(json_encode([
                     'status'       => 'started',
                     'redirect_url' => base_url('uno/room/' . $room_id),
+                ]));
+            }
+
+            $minesweeper_room = $this->firebase_lib->get_by_key('games/minesweeper', $room_id);
+            if ($minesweeper_room) {
+                return $this->output->set_content_type('application/json')->set_output(json_encode([
+                    'status'       => 'started',
+                    'redirect_url' => base_url('minesweeper/room/' . $room_id),
                 ]));
             }
 
@@ -543,67 +554,105 @@ class Player extends CI_Controller
     }
 
     /**
+     * อัปเดตการตั้งค่าในล็อบบี้ก่อนเริ่มเกม (เช่น โหมด, ระดับความยาก)
+     */
+    public function update_lobby_settings($room_id)
+    {
+        $current_user = $this->session->userdata('username');
+        if (!$current_user || !$room_id) {
+            return $this->output->set_content_type('application/json')->set_output(json_encode(['status' => 'error']));
+        }
+
+        $this->load->library('firebase_lib');
+        $lobby = $this->firebase_lib->get_by_key('lobbies', $room_id);
+        if (!$lobby || $lobby['host'] !== $current_user) {
+            return $this->output->set_content_type('application/json')->set_output(json_encode(['status' => 'error', 'message' => 'คุณไม่ใช่ Host']));
+        }
+
+        $settings = $this->input->post('settings');
+        if (is_array($settings)) {
+            $this->firebase_lib->update('lobbies/' . $room_id, 'settings', $settings);
+        }
+
+        return $this->output->set_content_type('application/json')->set_output(json_encode(['status' => 'ok']));
+    }
+
+    /**
      * Host กดเริ่มเกมจากห้องล็อบบี้
      */
     public function start_lobby_game($room_id)
     {
-        $current_user = $this->session->userdata('username');
-        $this->load->library('firebase_lib');
+        try {
+            $current_user = $this->session->userdata('username');
+            $this->load->library('firebase_lib');
 
-        $lobby = $this->firebase_lib->get_by_key('lobbies', $room_id);
-        if (!$lobby) {
-            return $this->output->set_content_type('application/json')->set_output(json_encode(['status' => 'error', 'message' => 'ไม่พบห้องนี้']));
-        }
+            $lobby = $this->firebase_lib->get_by_key('lobbies', $room_id);
+            if (!$lobby) {
+                return $this->output->set_content_type('application/json')->set_output(json_encode(['status' => 'error', 'message' => 'ไม่พบห้องนี้']));
+            }
 
-        // กำหนด URL ของเกมที่จะเล่น
-        $game_key = isset($lobby['game_key']) ? $lobby['game_key'] : 'tictactoe';
-        if ($game_key === 'uno') {
-            $redirect_url = base_url('uno/room/' . $room_id);
-        } else if ($game_key === 'tictactoe' || $game_key === 'xo') {
-            $redirect_url = base_url('xo/room/' . $room_id);
-        } else {
-            $redirect_url = base_url('player/lobby/' . $game_key . '/' . $room_id);
-        }
+            $players = isset($lobby['players']) && is_array($lobby['players']) ? $lobby['players'] : [$lobby['host']];
+            $host = isset($lobby['host']) ? $lobby['host'] : $current_user;
+            $guest = (count($players) > 1) ? $players[1] : null;
 
-        $players = isset($lobby['players']) && is_array($lobby['players']) ? $lobby['players'] : [$lobby['host']];
-        $host = isset($lobby['host']) ? $lobby['host'] : $current_user;
-        $guest = (count($players) > 1) ? $players[1] : null;
+            // กำหนด URL ของเกมที่จะเล่น
+            $game_key = isset($lobby['game_key']) ? $lobby['game_key'] : 'tictactoe';
+            if ($game_key === 'uno') {
+                $redirect_url = base_url('uno/room/' . $room_id);
+            } else if ($game_key === 'tictactoe' || $game_key === 'xo') {
+                $redirect_url = base_url('xo/room/' . $room_id);
+            } else if ($game_key === 'minesweeper') {
+                $lobby_settings = (isset($lobby['settings']) && is_array($lobby['settings'])) ? $lobby['settings'] : [];
+                $post_theme = $this->input->post('theme');
+                $theme = !empty($post_theme) ? $post_theme : (isset($lobby_settings['theme']) ? $lobby_settings['theme'] : 'classic');
+                $redirect_url = base_url('minesweeper/room/' . $room_id . '?theme=' . $theme);
+            } else {
+                $redirect_url = base_url('player/lobby/' . $game_key . '/' . $room_id);
+            }
 
-        // ถ้าเป็นเกม OX ให้สร้างห้องเกม games/xo/{room_id} ใน Firebase รอไว้ล่วงหน้าทันที
-        if ($game_key === 'tictactoe' || $game_key === 'xo') {
-            $this->firebase_lib->update('games/xo', $room_id, [
-                'id'         => $room_id,
-                'host'       => $host,
-                'player_x'   => $host,
-                'player_o'   => $guest,
-                'board'      => ['', '', '', '', '', '', '', '', ''],
-                'turn'       => 'X',
-                'status'     => !empty($guest) ? 'playing' : 'waiting',
-                'winner'     => null,
-                'score_x'    => 0,
-                'score_o'    => 0,
-                'created_at' => time(),
-            ]);
-        }
+            // ถ้าเป็นเกม OX ให้สร้างห้องเกม games/xo/{room_id} ใน Firebase รอไว้ล่วงหน้าทันที
+            if ($game_key === 'tictactoe' || $game_key === 'xo') {
+                $this->firebase_lib->update('games/xo', $room_id, [
+                    'id'         => $room_id,
+                    'host'       => $host,
+                    'player_x'   => $host,
+                    'player_o'   => $guest,
+                    'board'      => ['', '', '', '', '', '', '', '', ''],
+                    'turn'       => 'X',
+                    'status'     => !empty($guest) ? 'playing' : 'waiting',
+                    'winner'     => null,
+                    'score_x'    => 0,
+                    'score_o'    => 0,
+                    'created_at' => time(),
+                ]);
+            }
 
-        // ถ้าเป็นเกม UNO ให้สร้างห้องเกม games/uno/{room_id} รอไว้ล่วงหน้าทันที
-        if ($game_key === 'uno') {
-            $this->load->model('Uno_model', 'uno_model');
-            $uno_state = $this->uno_model->create_game_state($room_id, $host, $players);
-            $this->firebase_lib->set('games/uno', $room_id, $uno_state);
-        }
+            // ถ้าเป็นเกม UNO ให้สร้างห้องเกม games/uno/{room_id} รอไว้ล่วงหน้าทันที
+            if ($game_key === 'uno') {
+                $this->load->model('Uno_model', 'uno_model');
+                $uno_state = $this->uno_model->create_game_state($room_id, $host, $players);
+                $this->firebase_lib->set('games/uno', $room_id, $uno_state);
+            }
 
-        $this->firebase_lib->update('lobbies', $room_id, [
-            'status'       => 'started',
-            'redirect_url' => $redirect_url,
-        ]);
-
-        return $this->output
-            ->set_content_type('application/json')
-            ->set_output(json_encode([
-                'status'       => 'ok',
+            $this->firebase_lib->update('lobbies', $room_id, [
+                'status'       => 'started',
                 'redirect_url' => $redirect_url,
-            ]));
+            ]);
+
+            return $this->output
+                ->set_content_type('application/json')
+                ->set_output(json_encode([
+                    'status'       => 'ok',
+                    'redirect_url' => $redirect_url,
+                ]));
+        } catch (\Throwable $e) {
+            return $this->output
+                ->set_content_type('application/json')
+                ->set_output(json_encode([
+                    'status'  => 'error',
+                    'message' => 'เกิดข้อผิดพลาด: ' . $e->getMessage()
+                ]));
+        }
     }
 
     // ============================================================

@@ -16,7 +16,7 @@ $icons = [
     'duplicate' => 'warning',
     'userhave'  => 'warning',
 ];
-?>ฟ
+?>
 
 <!-- iziToast -->
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/izitoast/dist/css/iziToast.min.css">

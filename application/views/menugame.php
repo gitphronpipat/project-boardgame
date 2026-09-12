@@ -86,4 +86,14 @@ return [
         'status'   => 'coming_soon',
         'route'    => 'connect4',
     ],
+    'minesweeper' => [
+        'name'     => 'Minesweeper',
+        'icon'     => '💣',
+        'desc'     => 'หาทุ่นระเบิดให้เจอ เก็บดาวให้ครบ!',
+        'players'  => '1-4คน',
+        'color'    => '#059669',
+        'category' => 'puzzle',
+        'status'   => 'ready',
+        'route'    => 'minesweeper',
+    ],
 ];

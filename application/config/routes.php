@@ -75,6 +75,18 @@ $route['uno/catch_uno/(:any)'] = 'uno/catch_uno/$1';
 $route['uno/rematch/(:any)'] = 'uno/rematch/$1';
 $route['uno/leave/(:any)'] = 'uno/leave/$1';
 
+// Minesweeper Game Routes
+$route['minesweeper']                         = 'minesweeper/index';
+$route['minesweeper/room/(:any)']             = 'minesweeper/room/$1';
+$route['minesweeper/get_state/(:any)']        = 'minesweeper/get_state/$1';
+$route['minesweeper/reveal/(:any)']           = 'minesweeper/reveal/$1';
+$route['minesweeper/flag/(:any)']             = 'minesweeper/flag/$1';
+$route['minesweeper/change_settings/(:any)']  = 'minesweeper/change_settings/$1';
+$route['minesweeper/propose_difficulty/(:any)'] = 'minesweeper/propose_difficulty/$1';
+$route['minesweeper/respond_difficulty/(:any)'] = 'minesweeper/respond_difficulty/$1';
+$route['minesweeper/rematch/(:any)']          = 'minesweeper/rematch/$1';
+$route['minesweeper/leave/(:any)']            = 'minesweeper/leave/$1';
+
 $route['404_override']       = '';
 $route['translate_uri_dashes'] = FALSE;
 

@@ -195,11 +195,28 @@ $icons   = ['true' => 'success', 'false' => 'error', 'duplicate' => 'warning'];
 </script>
 <?php endif; ?>
 
+<?php
+$pregame_view = 'games/' . $game_key . '/settingforplay';
+$has_pregame = file_exists(APPPATH . 'views/' . $pregame_view . '.php');
+?>
 <!-- Lobby & Rules Section -->
-<div class="lobby-main-container">
+<div class="lobby-main-container" style="<?= $has_pregame ? 'max-width: 1480px;' : '' ?>">
     <div class="row g-4 align-items-start justify-content-center">
-        <!-- ฝั่งซ้าย: ห้องล็อบบี้และรายชื่อผู้เล่น -->
+        <?php if ($has_pregame): ?>
+        <!-- ฝั่งซ้าย: ตั้งค่าก่อนเริ่มเกม -->
+        <div class="col-12 col-lg-3 col-xl-3">
+            <?php $this->load->view($pregame_view, [
+                'game_key' => $game_key,
+                'game'     => $game,
+                'room_id'  => $room_id,
+            ]); ?>
+        </div>
+        <!-- ตรงกลาง: ห้องล็อบบี้และรายชื่อผู้เล่น -->
+        <div class="col-12 col-lg-5 col-xl-5">
+        <?php else: ?>
+        <!-- ฝั่งซ้าย: ห้องล็อบบี้และรายชื่อผู้เล่น (สำหรับเกมทั่วไป) -->
         <div class="col-12 col-lg-7 col-xl-7">
+        <?php endif; ?>
             <div class="lobby-card" style="--game-color: <?= $game['color'] ?>">
                 <div class="lobby-icon"><?= $game['icon'] ?></div>
                 <div class="lobby-title"><?= $game['name'] ?></div>
@@ -207,9 +224,14 @@ $icons   = ['true' => 'success', 'false' => 'error', 'duplicate' => 'warning'];
 
                 <div class="lobby-status">
                     <?php
-                    $players_raw = str_replace(' คน', '', $game['players']);
+                    $players_raw = preg_replace('/[^0-9\-]/', '', $game['players']);
                     $player_parts = explode('-', $players_raw);
-                    $max_players = isset($player_parts[1]) ? trim($player_parts[1]) : trim($player_parts[0]);
+                    $min_players = (isset($player_parts[0]) && is_numeric($player_parts[0])) ? (int)$player_parts[0] : 2;
+                    $max_players = (isset($player_parts[1]) && is_numeric($player_parts[1])) ? (int)$player_parts[1] : $min_players;
+                    if ($game_key === 'minesweeper') {
+                        $min_players = 1;
+                        $max_players = 4;
+                    }
                     ?>
                     <h5 id="lobby-count-text"><i class="fas fa-users me-1"></i>ผู้เล่นในห้อง (<span id="current-players-count">1</span>/<?= $max_players ?>)</h5>
 
@@ -230,17 +252,19 @@ $icons   = ['true' => 'success', 'false' => 'error', 'duplicate' => 'warning'];
                                 </span>
                             </div>
                         </div>
+                        <?php if ($max_players > 1): ?>
                         <div class="player-slot empty">
                             <div class="d-flex align-items-center gap-2">
                                 <div class="avatar"><i class="fas fa-user-plus"></i></div>
-                                <span class="name">รอผู้เล่น...</span>
+                                <span class="name"><?= ($min_players <= 1) ? 'รอเพื่อนร่วมทีม (ไม่บังคับ)...' : 'รอผู้เล่น...' ?></span>
                             </div>
                         </div>
+                        <?php endif; ?>
                     </div>
                 </div>
 
                 <p class="waiting-text" id="lobby-waiting-msg">
-                    <i class="fas fa-spinner fa-spin me-1"></i>กำลังรอเพื่อนเข้าร่วมห้องล็อบบี้<span class="dots"></span>
+                    <?= ($min_players <= 1) ? '<span class="text-info"><i class="fas fa-user-check me-1"></i> พร้อมเริ่มเล่นคนเดียว (Solo) หรือเชิญเพื่อนมาร่วมเล่นได้</span>' : '<i class="fas fa-spinner fa-spin me-1"></i>กำลังรอเพื่อนเข้าร่วมห้องล็อบบี้<span class="dots"></span>' ?>
                 </p>
 
                 <!-- ปุ่มควบคุมในล็อบบี้ (แยกมุมมอง Host / Guest) -->
@@ -248,7 +272,7 @@ $icons   = ['true' => 'success', 'false' => 'error', 'duplicate' => 'warning'];
                     <button type="button" class="btn-invite" data-bs-toggle="modal" data-bs-target="#inviteOnlineFriendsModal" onclick="loadLobbyOnlineFriends()">
                         <i class="fas fa-paper-plane me-1"></i>เชิญเพื่อนที่ออนไลน์
                     </button>
-                    <button class="btn-start" id="btn-start-game" disabled onclick="hostStartGame()">
+                    <button class="btn-start" id="btn-start-game" <?= ($min_players <= 1 ? 'style="opacity:1; cursor:pointer;"' : 'disabled') ?> onclick="hostStartGame()">
                         <i class="fas fa-play me-1"></i>เริ่มเกม
                     </button>
                 </div>
@@ -256,7 +280,7 @@ $icons   = ['true' => 'success', 'false' => 'error', 'duplicate' => 'warning'];
         </div>
 
         <!-- ฝั่งขวา: หน้าต่างกฎและกติกาการเล่น -->
-        <div class="col-12 col-lg-5 col-xl-5">
+        <div class="col-12 <?= $has_pregame ? 'col-lg-4 col-xl-4' : 'col-lg-5 col-xl-5' ?>">
             <?php $this->load->view('game_rules', [
                 'game_key' => $game_key,
                 'game'     => $game,
@@ -301,6 +325,8 @@ $icons   = ['true' => 'success', 'false' => 'error', 'duplicate' => 'warning'];
     window.CURRENT_GAME_NAME = '<?= $game['name'] ?>';
     window.CURRENT_ROOM_ID = '<?= $room_id ?>';
     window.CURRENT_USER = '<?= $this->session->userdata('username') ?>';
+    window.MIN_PLAYERS = <?= (int)$min_players ?>;
+    window.MAX_PLAYERS = <?= (int)$max_players ?>;
     var CURRENT_GAME_KEY = window.CURRENT_GAME_KEY;
     var CURRENT_GAME_NAME = window.CURRENT_GAME_NAME;
     var CURRENT_ROOM_ID = window.CURRENT_ROOM_ID;
@@ -362,13 +388,15 @@ $icons   = ['true' => 'success', 'false' => 'error', 'duplicate' => 'warning'];
                 </div>`;
             });
 
-            // ถ้ามีผู้เล่นไม่ถึง 2 คน ให้ขึ้นช่องว่าง
-            if (players.length < 2) {
+            // ถ้ามีผู้เล่นยังไม่เต็ม max_players ให้ขึ้นช่องว่าง
+            let maxSlots = window.MAX_PLAYERS || 2;
+            let minReq = window.MIN_PLAYERS || 2;
+            for (let i = players.length; i < maxSlots; i++) {
                 slotsHtml += `
                 <div class="player-slot empty">
                     <div class="d-flex align-items-center gap-2">
                         <div class="avatar"><i class="fas fa-user-plus"></i></div>
-                        <span class="name">รอผู้เล่น...</span>
+                        <span class="name">${(i >= minReq) ? 'รอเพื่อนร่วมทีม (ไม่บังคับ)...' : 'รอผู้เล่น...'}</span>
                     </div>
                 </div>`;
             }
@@ -377,8 +405,12 @@ $icons   = ['true' => 'success', 'false' => 'error', 'duplicate' => 'warning'];
 
             // ควบคุมปุ่มเริ่มเกมตามบทบาท Host / Guest
             if (isHost) {
-                if (players.length >= 2) {
-                    $('#lobby-waiting-msg').html('<span class="text-success"><i class="fas fa-check-circle me-1"></i> เพื่อนเข้าร่วมล็อบบี้แล้ว! กดเริ่มเกมได้เลย</span>');
+                if (players.length >= minReq) {
+                    if (players.length === 1 && minReq <= 1) {
+                        $('#lobby-waiting-msg').html('<span class="text-info"><i class="fas fa-user-check me-1"></i> โหมดเล่นคนเดียว (Solo) หรือรอเพื่อน (1-4 คน) — กดเริ่มเกมได้เลย!</span>');
+                    } else {
+                        $('#lobby-waiting-msg').html('<span class="text-success"><i class="fas fa-check-circle me-1"></i> ผู้เล่นพร้อมแล้ว (' + players.length + ' คน)! กดเริ่มเกมได้เลย</span>');
+                    }
                     $('#btn-start-game').prop('disabled', false).css({ opacity: 1, cursor: 'pointer' });
                 } else {
                     $('#lobby-waiting-msg').html('<i class="fas fa-spinner fa-spin me-1"></i> กำลังรอเพื่อนตอบรับคำเชิญ<span class="dots"></span>');
@@ -391,6 +423,11 @@ $icons   = ['true' => 'success', 'false' => 'error', 'duplicate' => 'warning'];
                         <i class="fas fa-hourglass-half fa-spin me-2 text-primary"></i>คุณอยู่ในล็อบบี้แล้ว รอ Host กดเริ่มเกม...
                     </div>
                 `);
+            }
+
+            // ซิงค์ข้อมูลการตั้งค่าก่อนเริ่มเกม (เช่น Minesweeper)
+            if (typeof window.syncPreGameSettingsFromLobby === 'function') {
+                window.syncPreGameSettingsFromLobby(lobby, isHost);
             }
 
             // ถ้า Host กดเริ่มเกมแล้ว -> พาผู้เล่นทุกคนเข้าห้องเกมทันที
@@ -408,7 +445,13 @@ $icons   = ['true' => 'success', 'false' => 'error', 'duplicate' => 'warning'];
     function hostStartGame() {
         isGameStarting = true;
         $('#btn-start-game').prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i> กำลังเข้าเกม...');
-        $.post('<?= base_url('player/start_lobby_game/') ?>' + CURRENT_ROOM_ID, function(res) {
+        
+        let postData = {};
+        if (typeof window.getPreGameSettings === 'function') {
+            postData = window.getPreGameSettings();
+        }
+
+        $.post('<?= base_url('player/start_lobby_game/') ?>' + CURRENT_ROOM_ID, postData, function(res) {
             if (res && res.status === 'ok' && res.redirect_url) {
                 window.location.href = res.redirect_url;
             } else {
